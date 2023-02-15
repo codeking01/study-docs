@@ -19,6 +19,31 @@ git commit -m "备注信息"
 git push
 ```
 
+git常见命令
+
+```git
+# 初始化
+git init
+
+# 提交到缓存区(所有文件)
+git add .
+
+#提交文件
+git commit -m "文件说明"
+
+# 定义远程
+git remote add orignal(别名) http://XXXXXX
+
+#修改远程
+git remote set-url orignal(别名) http://XXXXXX
+
+# 推送
+git push orignal(远程) master(默认本地的)
+
+#拉取
+git pull http://xxxx
+```
+
 ## yarn配置
 
 ```
@@ -50,6 +75,30 @@ yarn config set <key> <value> [-g|--global] //设置配
 ```
 # 全局安装
 yarn global add @vue/cli
+```
+
+## Docker安装Vim,并解决乱码
+
+安装
+
+```
+apt-get update
+apt-get install vim
+# 出错了就接着install
+```
+
+解决乱码
+
+```
+cd etc/vim
+vim vimrc
+```
+
+```
+# 文件最后加上
+set fileencodings=utf-8,ucs-bom,gb18030,gbk,gb2312,cp936
+set termencoding=utf-8
+set encoding=utf-8
 ```
 
 ## 一、配置YUM
@@ -105,11 +154,15 @@ yum repolist
 
 ```bash
 systemctl stop firewalld.service
+
+# 永久关闭·
+
+systemctl disable firewalld.service
 ```
 
 二、docker下载
 
-参考`https://www.kuangstudy.com/bbs/1570972251397271554`
+关闭参考`https://www.kuangstudy.com/bbs/1570972251397271554`
 
 `[《狂神说Java》docker教程通俗易懂-KuangStudy-文章](https://www.kuangstudy.com/bbs/1552836707509223426)`
 
@@ -559,7 +612,57 @@ unless-stopped，在容器退出时总是重启容器，但是不考虑在Docker
 
 ```
 
-## 六、Docker部署mysql8.0
+## 六、Docker部署mysql8.0.27
+
+**排错**
+
+```
+ # 查看端口，注意要有分号
+show global variables like 'port'; 
+# docker 部署的时候 -p 外部暴露端口:容器端口
+```
+
+1.拉取镜像
+
+2.运行容器
+
+```parms
+# 参数解释
+-net 设置模式 host,none,等
+-m 分配内存
+-v 某个容器的目录:映射centos上的某个目录(根据实际的设置)
+-e 设置环境变量
+MYSQL_ROOT_PASSWORD 指定数据库密码，账户名默认是root
+lower_case_table_names=1 关闭数据库名大小写区分
+```
+
+```
+# 参考模板
+docker run -it -d -p 3308:3306  --name mysql8_sec  \
+-m 500m -v /data/mysql8_sec/data:/var/lib/mysql \
+-v /data/mysql8_sec/config:/etc/mysql/conf.d  \
+-e MYSQL_ROOT_PASSWORD=123456 \
+-e TZ=Asia/Shanghai mysql:latest \
+--lower_case_table_names=1
+```
+
+3.配置支持远程
+
+进入容器
+
+```
+docker exec -it mysql8_sec /bin/bash
+mysql -uroot -p123456
+```
+
+```
+ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY '123456';
+flush privileges;
+# 刷新数据库
+flush privileges;
+```
+
+## 六、Docker部署mysql8.0 主从数据库（存在问题）
 
 ```bash
 docker pull mysql:8.0
@@ -868,6 +971,28 @@ show slave status \G;
 
 # 修改认证方式，这就可以和以前的mysql5的认证方式一样
 default_authentication_plugin=mysql_native_password
+```
+
+**mysql重置root密码**
+
+<u>如果密码输入不对，极有可能是因为你在数字键盘输入的，去你字母键盘上面那个位置输入！！！</u>
+
+```
+cd etc/mysql
+vim my.cnf
+# 在最后加上，跳过密码验证
+skip-grant-tables
+```
+
+```
+docker restart mysql8
+# 进入mysql验证密码直接回车即可
+```
+
+mysql新建用户
+
+```
+CREATE USER 'codeking'@'host' IDENTIFIED BY '123456';
 ```
 
 ## 七、Docker部署nginx
@@ -1309,8 +1434,210 @@ db.version();
 db.getMongo〇;
 ```
 
+## 十、Docker部署Nacos
+
+如果已经部署过，过来一段时间部署上不去了，检查ip变化
+
+在`/data/nacos/conf/application.properties`修改ip
+
+```
+# 这个地方的ip会变化
+db.url.0=jdbc:mysql://<ip>:3308/nacos_config?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true
+```
 
 
 
+参数介绍(不要用这个)
+
+```
+# 指定 nacos 对外映射端口，例如：8000:8848
+docker run -d -p 8848:8848 \
+
+# docker 容器名称
+--name nacos \
+
+# 自定义分配网络，可忽略
+--network woniu_network \
+
+# 自定义分配 IP 地址，可忽略
+--ip 172.0.0.28 \
+
+# nacos 单机实例
+--env MODE=standalone \
+
+# nacos 数据源 MySQL
+--env SPRING_DATASOURCE_PLATFORM=mysql \
+
+# MySQL 主机地址，记得改成自己数据库地址
+--env MYSQL_SERVICE_HOST=172.0.0.5 \
+
+# MySQL 端口号
+--env MYSQL_SERVICE_PORT=3306 \
+
+# MySQL 数据库名称，记得在对应的数据库执行从 github 下载的 SQL 文件
+--env MYSQL_SERVICE_DB_NAME=nacos \
+
+# MySQL 用户名称，例如：root
+--env MYSQL_SERVICE_USER=nacos \
+
+# MySQL 服务密码，例如：123456
+--env MYSQL_SERVICE_PASSWORD=nacos \
+
+# docker 文件映射，把 nacos 容器中文件和本地路径映射起来，方便操作和持久化
+# nacos 配置文件目录
+-v /home/docker/nacos/conf:/home/nacos/conf \
+
+# nacos 日志文件目录
+-v /home/docker/nacos/logs:/home/nacos/logs \
+
+# nacos 数据文件目录
+-v /home/docker/nacos/data:/home/nacos/data \
+
+# 指定 docker nacos 版本，示例：nacos/nacos-server:v2.0.4
+nacos/nacos-server:latest
+# https://blog.csdn.net/u011374856/article/details/109204466
+```
+
+**执行命令**
+
+0.先连接一个数据库
+
+下载
+
+[nacos/nacos-db.sql at master · alibaba/nacos (github.com)](https://github.com/alibaba/nacos/blob/master/config/src/main/resources/META-INF/nacos-db.sql)
+
+然后执行文件内容(查看数据库文件内容，指明了数据库名字**nacos_config**,这个会和后面的**MYSQL_SERVICE_DB_NAME**对应)。
+
+```
+docker run -d --name mynacos -p 8848:8848 -e PREFER_HOST_MODE=hostname -e MODE=standalone nacos/nacos-server
+```
+
+1.先创建容器，然后一会再复制nacos文件，然后删除容器，重创建
+
+```
+docker run -d --name mynacos -p 8848:8848 -e PREFER_HOST_MODE=hostname -e MODE=standalone \
+nacos/nacos-server
+```
+
+2.复制相关文件
+
+```
+# 把容器中的 nacos 文件复制出来
+docker cp -a mynacos:/home/nacos /data/
+
+# 删除 nacos 容器
+docker rm -f mynacos
+```
+
+3.自定义启动容器
+
+```
+ 用这个
+docker run -d --name mynacos -p 8848:8848 -e PREFER_HOST_MODE=hostname -e MODE=standalone \
+-v /data/nacos:/home/nacos \
+nacos/nacos-server
 
 
+### 另一个配置
+docker run -d -p 8848:8848 \
+--name mynacos \
+--env MODE=standalone \
+-e PREFER_HOST_MODE=hostname \
+--env SPRING_DATASOURCE_PLATFORM=mysql \
+--env MYSQL_SERVICE_HOST=127.0.0.1 \
+--env MYSQL_SERVICE_PORT=3306 \
+--env MYSQL_SERVICE_DB_NAME=nacos_config \
+--env MYSQL_SERVICE_USER=root \
+--env MYSQL_SERVICE_PASSWORD=123456 \
+--restart=no \
+-v /home/docker/nacos/conf:/home/nacos/conf \
+-v /home/docker/nacos/logs:/home/nacos/logs \
+-v /home/docker/nacos/data:/home/nacos/data \
+nacos/nacos-server:latest
+
+```
+
+4.修改配置文件
+
+```
+# spring
+server.contextPath=/nacos
+server.servlet.contextPath=/nacos
+server.port=8848
+management.metrics.export.elastic.enabled=false
+management.metrics.export.influx.enabled=false
+server.tomcat.accesslog.enabled=true
+server.tomcat.accesslog.pattern=%h %l %u %t "%r" %s %b %D %{User-Agent}i
+server.tomcat.basedir=/
+nacos.security.ignore.urls=/,/**/*.css,/**/*.js,/**/*.html,/**/*.map,/**/*.svg,/**/*.png,/**/*.ico,/console-fe/public/**,/v1/auth/login,/v1/console/health/**,/v1/cs/**,/v1/ns/**,/v1/cmdb/**,/actuator/**,/v1/console/server/**
+spring.datasource.platform=mysql
+db.num=1
+# 这个地方不知道为什么必须写主机的ip,可以设定数据库的ip为固定，参考 http://t.csdn.cn/PF0Y5http://t.csdn.cn/PF0Y5
+db.url.0=jdbc:mysql://192.168.11.96:3308/nacos_config?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true
+db.user=root
+db.password=123456
+```
+
+```
+ 1，搜索nacos
+docker search nacos    #搜索nacos的镜像
+2,下载image
+docker  pull nacos/nacos-server:1.3.1  #推荐稳定版版本(官方推荐1.3.1),如果不指定版本的话则就是latest版本(对应nacos的1.4版本)
+3,检查镜像
+docker images  #查看docker中的所有镜像包
+4，启动
+prefer_host_mode hostname/ip 默认是ip。
+-v centos上的某个目录(根据实际的设置别模仿我的)：某个容器的目录
+-p 外部访问端口:内部被映射端口(根据实际的设置别模仿我的)
+-e 环境变量设置
+-d 后台运行
+--name 容器的名称
+--restart 重启策略 always no 等
+
+
+docker run -d   -p 8848:8848  --name mynacos -e MODE=standalone  --restart=no \
+-v  /data/nacos/logs:/home/nacos/logsnacos/nacos-server 
+#使用的时候合成一段即可 docker启动镜像命令
+
+
+```
+
+| name                          | description                     | option                                 |
+| ----------------------------- | ------------------------------- | -------------------------------------- |
+| MODE                          | cluster模式/standalone模式          | cluster/standalone default **cluster** |
+| NACOS_SERVERS                 | nacos cluster地址                 | eg. ip1,ip2,ip3                        |
+| PREFER_HOST_MODE              | 是否支持hostname                    | hostname/ip default **ip**             |
+| NACOS_SERVER_PORT             | nacos服务器端口                      | default **8848**                       |
+| NACOS_SERVER_IP               | 多网卡下的自定义nacos服务器IP              |                                        |
+| SPRING_DATASOURCE_PLATFORM    | standalone 支持 mysql             | mysql / empty default empty            |
+| MYSQL_MASTER_SERVICE_HOST     | mysql 主节点host                   |                                        |
+| MYSQL_MASTER_SERVICE_PORT     | mysql 主节点端口                     | default : **3306**                     |
+| MYSQL_MASTER_SERVICE_DB_NAME  | mysql 主节点数据库                    |                                        |
+| MYSQL_MASTER_SERVICE_USER     | 数据库用户名                          |                                        |
+| MYSQL_MASTER_SERVICE_PASSWORD | 数据库密码                           |                                        |
+| MYSQL_SLAVE_SERVICE_HOST      | mysql从节点host                    |                                        |
+| MYSQL_SLAVE_SERVICE_PORT      | mysql从节点端口                      | default :3306                          |
+| MYSQL_DATABASE_NUM            | 数据库数量                           | default :2                             |
+| JVM_XMS                       | -Xms                            | default :2g                            |
+| JVM_XMX                       | -Xmx                            | default :2g                            |
+| JVM_XMN                       | -Xmn                            | default :1g                            |
+| JVM_MS                        | -XX:MetaspaceSize               | default :128m                          |
+| JVM_MMS                       | -XX:MaxMetaspaceSize            | default :320m                          |
+| NACOS_DEBUG                   | 开启远程调试                          | y/n default :n                         |
+| TOMCAT_ACCESSLOG_ENABLED      | server.tomcat.accesslog.enabled | default :false                         |
+
+```
+docker run -d -p 8848:8848  \
+-e MODE=standalone \
+-e PREFER_HOST_MODE=hostname \
+-e SPRING_DATASOURCE_PLATFORM=mysql \
+-e MYSQL_SERVICE_HOST=127.0.0.1 \
+-e MYSQL_SERVICE_PORT=3306 \
+-e MYSQL_SERVICE_DB_NAME=nacos_config \
+-e MYSQL_SERVICE_USER=root \
+-e MYSQL_SERVICE_PASSWORD=root \
+-e MYSQL_DATABASE_NUM=1 \
+-v /data/nacos/init.d/custom.properties:/home/nacos/init.d/custom.properties \
+-v /data/nacos/logs:/home/nacos/logs \
+--restart no --name mynacos nacos/nacos-server
+```
